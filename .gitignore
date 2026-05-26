@@ -1,0 +1,20 @@
+# Client dependencies
+client/node_modules/
+
+# Server build artifacts
+server/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
