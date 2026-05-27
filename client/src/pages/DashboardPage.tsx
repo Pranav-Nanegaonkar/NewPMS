@@ -10,7 +10,7 @@ import { taskStatusColor, taskStatusLabel, priorityColor, projectStatusColor, pr
 import { formatDate, timeAgo } from '../utils/format'
 
 export default function DashboardPage() {
-  const currentUser = useAppSelector((s) => s.currentUser.user)
+  const currentUser = useAppSelector((s) => s.auth.user)
   const { data: projects = [], isLoading: loadingProjects } = useGetAllProjectsQuery()
   const { data: tasks = [], isLoading: loadingTasks } = useGetAllTasksQuery()
   const { data: users = [] } = useGetAllUsersQuery()

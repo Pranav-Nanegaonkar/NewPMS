@@ -5,6 +5,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   onCancel: () => void
   danger?: boolean
+  disabled?: boolean
 }
 
 export default function ConfirmDialog({
@@ -14,6 +15,7 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
   danger = false,
+  disabled = false,
 }: ConfirmDialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -23,13 +25,15 @@ export default function ConfirmDialog({
         <div className="flex justify-end gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            disabled={disabled}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+            disabled={disabled}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50 ${
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >

@@ -24,6 +24,7 @@ import {
 } from '../api/sprintsApi'
 import { useGetLogsByProjectQuery } from '../api/activityApi'
 import { useGetAllUsersQuery } from '../api/usersApi'
+import { useToast } from '../components/ToastContainer'
 import type {
   ProjectRequest,
   TaskRequest,
@@ -58,6 +59,7 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const projectId = Number(id)
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [activeTab, setActiveTab] = useState<Tab>('board')
   const [showEditProject, setShowEditProject] = useState(false)
@@ -69,6 +71,7 @@ export default function ProjectDetailPage() {
   const [deleteSprintId, setDeleteSprintId] = useState<number | null>(null)
   const [showAddMember, setShowAddMember] = useState(false)
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null)
+  const [deleteMemberId, setDeleteMemberId] = useState<number | null>(null)
 
   const { data: project, isLoading } = useGetProjectByIdQuery(projectId)
   const { data: tasks = [] } = useGetTasksByProjectQuery(projectId)
@@ -78,15 +81,15 @@ export default function ProjectDetailPage() {
   const { data: allUsers = [] } = useGetAllUsersQuery()
 
   const [updateProject, { isLoading: updatingProject }] = useUpdateProjectMutation()
-  const [deleteProject] = useDeleteProjectMutation()
+  const [deleteProject, { isLoading: deletingProject }] = useDeleteProjectMutation()
   const [createTask, { isLoading: creatingTask }] = useCreateTaskMutation()
-  const [deleteTask] = useDeleteTaskMutation()
+  const [deleteTask, { isLoading: deletingTask }] = useDeleteTaskMutation()
   const [createSprint, { isLoading: creatingSprint }] = useCreateSprintMutation()
   const [updateSprint, { isLoading: updatingSprint }] = useUpdateSprintMutation()
   const [updateSprintStatus] = useUpdateSprintStatusMutation()
-  const [deleteSprintMutation] = useDeleteSprintMutation()
+  const [deleteSprintMutation, { isLoading: deletingSprint }] = useDeleteSprintMutation()
   const [addMember, { isLoading: addingMember }] = useAddMemberMutation()
-  const [removeMember] = useRemoveMemberMutation()
+  const [removeMember, { isLoading: removingMember }] = useRemoveMemberMutation()
   const [updateMemberRole] = useUpdateMemberRoleMutation()
 
   const backlogTasks = tasks.filter((t) => !t.sprintId)
@@ -96,29 +99,96 @@ export default function ProjectDetailPage() {
   if (!project) return <div className="text-center py-20 text-gray-500">Project not found</div>
 
   async function handleUpdateProject(data: ProjectRequest) {
-    await updateProject({ id: projectId, body: data }).unwrap()
-    setShowEditProject(false)
+    try {
+      await updateProject({ id: projectId, body: data }).unwrap()
+      setShowEditProject(false)
+      toast.success('Project updated')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to update project')
+    }
   }
 
   async function handleDeleteProject() {
-    await deleteProject(projectId).unwrap()
-    navigate('/projects')
+    try {
+      await deleteProject(projectId).unwrap()
+      toast.success('Project deleted')
+      navigate('/projects')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to delete project')
+      setShowDeleteProject(false)
+    }
   }
 
   async function handleCreateTask(data: TaskRequest) {
-    await createTask({ ...data, status: createTaskStatus }).unwrap()
-    setShowCreateTask(false)
+    try {
+      await createTask({ ...data, status: createTaskStatus }).unwrap()
+      setShowCreateTask(false)
+      toast.success('Task created')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to create task')
+    }
+  }
+
+  async function handleDeleteTask() {
+    if (!deleteTaskId) return
+    try {
+      await deleteTask(deleteTaskId).unwrap()
+      toast.success('Task deleted')
+      setDeleteTaskId(null)
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to delete task')
+    }
   }
 
   async function handleCreateSprint(data: SprintRequest) {
-    await createSprint(data).unwrap()
-    setShowCreateSprint(false)
+    try {
+      await createSprint(data).unwrap()
+      setShowCreateSprint(false)
+      toast.success('Sprint created')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to create sprint')
+    }
   }
 
   async function handleUpdateSprint(data: SprintRequest) {
     if (editSprintId) {
-      await updateSprint({ id: editSprintId, body: data }).unwrap()
-      setEditSprintId(null)
+      try {
+        await updateSprint({ id: editSprintId, body: data }).unwrap()
+        setEditSprintId(null)
+        toast.success('Sprint updated')
+      } catch (err: unknown) {
+        const error = err as { data?: { message?: string } }
+        toast.error(error?.data?.message ?? 'Failed to update sprint')
+      }
+    }
+  }
+
+  async function handleDeleteSprint() {
+    if (!deleteSprintId) return
+    try {
+      await deleteSprintMutation(deleteSprintId).unwrap()
+      toast.success('Sprint deleted')
+      setDeleteSprintId(null)
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to delete sprint')
+    }
+  }
+
+  async function handleRemoveMember() {
+    if (!deleteMemberId) return
+    try {
+      await removeMember({ projectId, userId: deleteMemberId }).unwrap()
+      toast.success('Member removed')
+      setDeleteMemberId(null)
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to remove member')
     }
   }
 
@@ -445,8 +515,9 @@ export default function ProjectDetailPage() {
         <ConfirmDialog
           title="Delete Project"
           message={`Delete "${project.name}"? This will also delete all tasks and sprints.`}
-          confirmLabel="Delete"
+          confirmLabel={deletingProject ? 'Deleting...' : 'Delete'}
           danger
+          disabled={deletingProject}
           onConfirm={handleDeleteProject}
           onCancel={() => setShowDeleteProject(false)}
         />
@@ -456,12 +527,10 @@ export default function ProjectDetailPage() {
         <ConfirmDialog
           title="Delete Task"
           message="Delete this task? This cannot be undone."
-          confirmLabel="Delete"
+          confirmLabel={deletingTask ? 'Deleting...' : 'Delete'}
           danger
-          onConfirm={async () => {
-            await deleteTask(deleteTaskId).unwrap()
-            setDeleteTaskId(null)
-          }}
+          disabled={deletingTask}
+          onConfirm={handleDeleteTask}
           onCancel={() => setDeleteTaskId(null)}
         />
       )}
@@ -469,14 +538,24 @@ export default function ProjectDetailPage() {
       {deleteSprintId && (
         <ConfirmDialog
           title="Delete Sprint"
-          message="Delete this sprint? Tasks will remain in the project."
-          confirmLabel="Delete"
+          message="Delete this sprint? This cannot be undone."
+          confirmLabel={deletingSprint ? 'Deleting...' : 'Delete'}
           danger
-          onConfirm={async () => {
-            await deleteSprintMutation(deleteSprintId).unwrap()
-            setDeleteSprintId(null)
-          }}
+          disabled={deletingSprint}
+          onConfirm={handleDeleteSprint}
           onCancel={() => setDeleteSprintId(null)}
+        />
+      )}
+
+      {deleteMemberId && (
+        <ConfirmDialog
+          title="Remove Member"
+          message="Remove this member from the project?"
+          confirmLabel={removingMember ? 'Removing...' : 'Remove'}
+          danger
+          disabled={removingMember}
+          onConfirm={handleRemoveMember}
+          onCancel={() => setDeleteMemberId(null)}
         />
       )}
     </div>

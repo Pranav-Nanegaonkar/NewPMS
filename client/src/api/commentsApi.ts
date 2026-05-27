@@ -20,8 +20,7 @@ export const commentsApi = baseApi.injectEndpoints({
       query: ({ id, authorId, content }) => ({
         url: `/comments/${id}?authorId=${authorId}`,
         method: 'PUT',
-        body: content,
-        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(content),
       }),
       transformResponse: (res: ApiResponse<Comment>) => res.data,
       invalidatesTags: (_r, _e, { taskId }) => [{ type: 'Comment', id: taskId }],

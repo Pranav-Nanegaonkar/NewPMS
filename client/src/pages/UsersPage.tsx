@@ -6,6 +6,7 @@ import {
   useUpdateUserMutation,
   useDeleteUserMutation,
 } from '../api/usersApi'
+import { useToast } from '../components/ToastContainer'
 import type { User, UserRequest, UserRole } from '../types'
 import Spinner from '../components/Spinner'
 import Modal from '../components/Modal'
@@ -17,10 +18,11 @@ import { userRoleColor } from '../utils/enumColors'
 import { formatDate } from '../utils/format'
 
 export default function UsersPage() {
+  const toast = useToast()
   const { data: users = [], isLoading } = useGetAllUsersQuery()
   const [createUser, { isLoading: creating }] = useCreateUserMutation()
   const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
-  const [deleteUser] = useDeleteUserMutation()
+  const [deleteUser, { isLoading: deleting }] = useDeleteUserMutation()
 
   const [showCreate, setShowCreate] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
@@ -37,21 +39,39 @@ export default function UsersPage() {
   })
 
   async function handleCreate(data: UserRequest) {
-    await createUser(data).unwrap()
-    setShowCreate(false)
+    try {
+      await createUser(data).unwrap()
+      setShowCreate(false)
+      toast.success('User created successfully')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to create user')
+    }
   }
 
   async function handleUpdate(data: UserRequest) {
     if (editUser) {
-      await updateUser({ id: editUser.id, body: data }).unwrap()
-      setEditUser(null)
+      try {
+        await updateUser({ id: editUser.id, body: data }).unwrap()
+        setEditUser(null)
+        toast.success('User updated successfully')
+      } catch (err: unknown) {
+        const error = err as { data?: { message?: string } }
+        toast.error(error?.data?.message ?? 'Failed to update user')
+      }
     }
   }
 
   async function handleDelete() {
     if (deleteId) {
-      await deleteUser(deleteId).unwrap()
-      setDeleteId(null)
+      try {
+        await deleteUser(deleteId).unwrap()
+        setDeleteId(null)
+        toast.success('User deleted successfully')
+      } catch (err: unknown) {
+        const error = err as { data?: { message?: string } }
+        toast.error(error?.data?.message ?? 'Failed to delete user')
+      }
     }
   }
 
@@ -192,8 +212,9 @@ export default function UsersPage() {
         <ConfirmDialog
           title="Delete User"
           message="Are you sure you want to delete this user?"
-          confirmLabel="Delete"
+          confirmLabel={deleting ? 'Deleting...' : 'Delete'}
           danger
+          disabled={deleting}
           onConfirm={handleDelete}
           onCancel={() => setDeleteId(null)}
         />

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import ProtectedRoute from './components/ProtectedRoute'
+import ToastContainer from './components/ToastContainer'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
@@ -49,7 +50,13 @@ export default function App() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
-        if (!res.ok) throw new Error('Invalid token')
+        if (!res.ok) {
+          console.warn('Token validation failed with status:', res.status)
+          throw new Error('Invalid token')
+        }
+        return res.json()
+      })
+      .then(() => {
         const user = {
           id: payload.userId as number,
           email: payload.email as string,
@@ -61,35 +68,39 @@ export default function App() {
         }
         dispatch(setCredentials({ user, token }))
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Token validation error:', err)
         tokenStorage.remove()
         dispatch(logout())
       })
   }, [dispatch])
 
   return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
+    <>
+      <ToastContainer />
+      <Routes>
+        {/* Public routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
 
-      {/* Protected routes — AppLayout provides the shell with Sidebar + Navbar */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<DashboardPage />} />
-        <Route path="projects" element={<ProjectsPage />} />
-        <Route path="projects/:id" element={<ProjectDetailPage />} />
-        <Route path="tasks/:id" element={<TaskDetailPage />} />
-        <Route path="users" element={<UsersPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+        {/* Protected routes — AppLayout provides the shell with Sidebar + Navbar */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
+          <Route path="projects/:id" element={<ProjectDetailPage />} />
+          <Route path="tasks/:id" element={<TaskDetailPage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </>
   )
 }

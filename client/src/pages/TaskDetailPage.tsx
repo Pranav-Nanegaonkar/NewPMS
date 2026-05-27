@@ -12,6 +12,7 @@ import { useGetCommentsByTaskQuery, useAddCommentMutation, useDeleteCommentMutat
 import { useGetLogsByTaskQuery } from '../api/activityApi'
 import { useGetAllUsersQuery } from '../api/usersApi'
 import { useAppSelector } from '../app/hooks'
+import { useToast } from '../components/ToastContainer'
 import type { TaskRequest, TaskStatus } from '../types'
 import Spinner from '../components/Spinner'
 import Modal from '../components/Modal'
@@ -33,7 +34,8 @@ export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const taskId = Number(id)
   const navigate = useNavigate()
-  const currentUser = useAppSelector((s) => s.currentUser.user)
+  const toast = useToast()
+  const currentUser = useAppSelector((s) => s.auth.user)
 
   const [showEdit, setShowEdit] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
@@ -46,35 +48,90 @@ export default function TaskDetailPage() {
   const { data: allUsers = [] } = useGetAllUsersQuery()
 
   const [updateTask, { isLoading: updating }] = useUpdateTaskMutation()
-  const [updateStatus] = useUpdateTaskStatusMutation()
-  const [assignTask] = useAssignTaskMutation()
-  const [deleteTask] = useDeleteTaskMutation()
+  const [updateStatus, { isLoading: updatingStatus }] = useUpdateTaskStatusMutation()
+  const [assignTask, { isLoading: assigning }] = useAssignTaskMutation()
+  const [deleteTask, { isLoading: deleting }] = useDeleteTaskMutation()
   const [createTask, { isLoading: creatingSubtask }] = useCreateTaskMutation()
   const [addComment, { isLoading: addingComment }] = useAddCommentMutation()
-  const [deleteComment] = useDeleteCommentMutation()
+  const [deleteComment, { isLoading: deletingComment }] = useDeleteCommentMutation()
 
   if (isLoading) return <Spinner className="mt-20" />
   if (!task) return <div className="text-center py-20 text-gray-500">Task not found</div>
 
   async function handleUpdate(data: TaskRequest) {
-    await updateTask({ id: taskId, body: data }).unwrap()
-    setShowEdit(false)
+    try {
+      await updateTask({ id: taskId, body: data }).unwrap()
+      setShowEdit(false)
+      toast.success('Task updated successfully')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to update task')
+    }
   }
 
   async function handleDelete() {
-    await deleteTask(taskId).unwrap()
-    navigate(-1)
+    try {
+      await deleteTask(taskId).unwrap()
+      toast.success('Task deleted successfully')
+      navigate(-1)
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to delete task')
+      setShowDelete(false)
+    }
   }
 
   async function handleAddSubtask(data: TaskRequest) {
-    await createTask({ ...data, parentTaskId: taskId }).unwrap()
-    setShowAddSubtask(false)
+    try {
+      await createTask({ ...data, parentTaskId: taskId }).unwrap()
+      setShowAddSubtask(false)
+      toast.success('Subtask created successfully')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to create subtask')
+    }
   }
 
   async function handleAddComment() {
     if (!commentText.trim() || !currentUser) return
-    await addComment({ taskId, authorId: currentUser.id, content: commentText.trim() }).unwrap()
-    setCommentText('')
+    try {
+      await addComment({ taskId, authorId: currentUser.id, content: commentText.trim() }).unwrap()
+      setCommentText('')
+      toast.success('Comment added')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to add comment')
+    }
+  }
+
+  async function handleDeleteComment(commentId: number) {
+    try {
+      await deleteComment({ id: commentId, authorId: currentUser!.id, taskId }).unwrap()
+      toast.success('Comment deleted')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to delete comment')
+    }
+  }
+
+  async function handleStatusChange(status: TaskStatus) {
+    try {
+      await updateStatus({ id: taskId, status }).unwrap()
+      toast.success('Status updated')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to update status')
+    }
+  }
+
+  async function handleAssignChange(userId: number) {
+    try {
+      await assignTask({ id: taskId, userId }).unwrap()
+      toast.success('Task assigned')
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } }
+      toast.error(error?.data?.message ?? 'Failed to assign task')
+    }
   }
 
   const overdue = isOverdue(task.dueDate)
@@ -203,13 +260,10 @@ export default function TaskDetailPage() {
                         {currentUser?.id === comment.author.id && (
                           <button
                             onClick={() =>
-                              deleteComment({
-                                id: comment.id,
-                                authorId: currentUser.id,
-                                taskId,
-                              })
+                              handleDeleteComment(comment.id)
                             }
-                            className="text-xs text-red-400 hover:text-red-600 ml-auto"
+                            disabled={deletingComment}
+                            className="text-xs text-red-400 hover:text-red-600 ml-auto disabled:opacity-50"
                           >
                             Delete
                           </button>
@@ -265,9 +319,10 @@ export default function TaskDetailPage() {
                 <select
                   value={task.status}
                   onChange={(e) =>
-                    updateStatus({ id: taskId, status: e.target.value as TaskStatus })
+                    handleStatusChange(e.target.value as TaskStatus)
                   }
-                  className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={updatingStatus}
+                  className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                 >
                   <option value="TODO">To Do</option>
                   <option value="IN_PROGRESS">In Progress</option>
@@ -282,9 +337,10 @@ export default function TaskDetailPage() {
                 <select
                   value={task.assignee?.id ?? ''}
                   onChange={(e) => {
-                    if (e.target.value) assignTask({ id: taskId, userId: Number(e.target.value) })
+                    if (e.target.value) handleAssignChange(Number(e.target.value))
                   }}
-                  className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={assigning}
+                  className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                 >
                   <option value="">Unassigned</option>
                   {allUsers.map((u) => (
@@ -382,10 +438,11 @@ export default function TaskDetailPage() {
         <ConfirmDialog
           title="Delete Task"
           message="Delete this task and all its subtasks? This cannot be undone."
-          confirmLabel="Delete"
+          confirmLabel={deleting ? 'Deleting...' : 'Delete'}
           danger
           onConfirm={handleDelete}
           onCancel={() => setShowDelete(false)}
+          disabled={deleting}
         />
       )}
     </div>
